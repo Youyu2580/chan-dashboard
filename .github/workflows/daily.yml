@@ -1,0 +1,56 @@
+name: daily
+
+on:
+  schedule:
+    # UTC 07:35 / 08:35 = 北京 15:35 / 16:35（收盘后两次，防 GitHub 定时延迟）
+    - cron: "35 7,8 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: deps
+        run: pip install --quiet pillow
+
+      - name: build site
+        run: python update.py
+
+      - name: persist history
+        run: |
+          git config user.name "chan-bot"
+          git config user.email "chan-bot@users.noreply.github.com"
+          git add site/history.json site/data.json || true
+          if ! git diff --staged --quiet; then
+            git commit -m "history: $(date -u +%F)"
+            git push
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
