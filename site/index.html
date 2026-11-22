@@ -1,0 +1,249 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f4f5f7"><title>指数缠论看板</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#f4f5f7;color:#1c1c1e;
+     -webkit-text-size-adjust:100%;padding:12px 12px 34px;max-width:580px;margin:0 auto;line-height:1.6}
+h1{font-size:18px;font-weight:600}
+.sub{font-size:12.5px;color:#8a8a8e;margin-top:3px}
+.tabs{display:flex;gap:8px;margin-top:12px}
+.tab{flex:1;border:0;background:#fff;border-radius:12px;padding:9px 4px;font-size:13.5px;color:#5a5a5e;
+     box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;flex-direction:column;align-items:center;gap:3px}
+.tab.on{background:#1c1c1e;color:#fff}
+.tab .px{font-size:12px;opacity:.75;font-variant-numeric:tabular-nums}
+.tab .dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
+.d-red{background:#e05b4a}.d-amber{background:#e0a13a}.d-green{background:#37a06b}
+.panel{display:none}
+.panel.on{display:block}
+.card{background:#fff;border-radius:14px;padding:14px 15px;margin-top:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.verdict{border-radius:16px;padding:16px;margin-top:12px;color:#fff}
+.verdict.red{background:linear-gradient(135deg,#c0392b,#e05b4a)}
+.verdict.amber{background:linear-gradient(135deg,#c77c14,#e0a13a)}
+.verdict.green{background:linear-gradient(135deg,#1f7a4d,#37a06b)}
+.verdict .tag{font-size:12px;opacity:.85;letter-spacing:3px}
+.verdict .big{font-size:21px;font-weight:700;margin-top:6px;line-height:1.4}
+.verdict .line{font-size:13px;opacity:.95;margin-top:8px}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:8px 0;border-bottom:1px dashed #ececef}
+.kv:last-child{border-bottom:0}
+.kv .k{color:#76767a;white-space:nowrap}
+.kv .v{font-weight:600;text-align:right}
+h2{font-size:14px;font-weight:600;margin-bottom:8px;color:#3a3a3c}
+.pill{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:9px}
+.p-red{background:#fdeaea;color:#c0392b}.p-amber{background:#fdf2e2;color:#b3720c}
+.p-green{background:#e8f5ee;color:#1f7a4d}.p-grey{background:#f0f0f2;color:#6f6f74}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 4px;border-bottom:1px solid #f2f2f4;vertical-align:top}
+th{color:#8a8a8e;font-weight:500;font-size:12px}
+td.n{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+img{width:100%;border-radius:10px;display:block}
+.risk{font-size:13px;color:#3a3a3c;padding:8px 0;border-bottom:1px dashed #ececef}
+.rule{font-size:12.5px;color:#5a5a5e;background:#f7f7f9;border-radius:9px;padding:9px 11px;margin-bottom:7px;line-height:1.55}
+.rule b{color:#3a3a3c}
+.risk:last-child{border-bottom:0}
+.risk b{color:#c0392b;font-weight:600}
+details{font-size:13px;color:#5a5a5e}
+summary{cursor:pointer;color:#3a3a3c;font-weight:600;font-size:14px}
+.foot{font-size:11.5px;color:#9a9aa0;margin-top:16px;line-height:1.7}
+</style></head><body>
+<h1>指数缠论看板</h1>
+<div class="sub">上证指数 · 创业板指 · 科创50　生成 2026-11-23 05:59</div>
+<div class="tabs"><button class="tab on" data-i="0">上证指数<span class="px"><span class="dot d-amber"></span>3533.79</span></button><button class="tab" data-i="1">创业板指<span class="px"><span class="dot d-red"></span>2212.13</span></button><button class="tab" data-i="2">科创50<span class="px"><span class="dot d-red"></span>1231.09</span></button></div>
+<div class="panel on" id="p0"><div class="verdict amber">
+  <div class="tag">今 日 信 号</div>
+  <div class="big">下跌在减速，等底分型</div>
+  <div class="line">日线在 3928~4197 中枢下方；离开后反弹第一次只到 3701.59（三卖）。本轮下跌 3574→3501：价新低、DIF 抬高（-57.1→-52.3）、绿柱面积缩小；这一笔还没走完。30 分钟最后中枢 3566~3597。</div>
+</div>
+<div class="card">
+  <h2>结构状态</h2>
+  <div class="kv"><span class="k">日线位置</span><span class="v">中枢下方（3928~4197）</span></div>
+  <div class="kv"><span class="k">三买 / 三卖</span><span class="v">三卖 3701.59（第 1 次回试）</span></div>
+  <div class="kv"><span class="k">同向笔力度（背驰近似）</span><span class="v"><span class="pill p-amber">价新低 + DIF 抬高 + 面积缩（≈底背驰）</span></span></div>
+  <div class="kv"><span class="k">30 分钟</span><span class="v">最后中枢 3566~3597</span></div>
+  <div class="kv"><span class="k">月线（大级别）</span><span class="v">月线中枢上沿 3419（在上方）</span></div>
+</div>
+<div class="card">
+  <h2>风控提示（原文规则）</h2>
+  <div class="rule"><b>第16课</b>　入场后一旦出现盘整走势，坚决退出（盘整不参与，且盘整后有一半概率继续下跌）。</div><div class="rule"><b>第20课</b>　三类买卖点必须是<b>第一次</b>回试；三买后若走不出第二个同级别中枢（不成趋势），就在盘整高点出掉。</div><div class="rule"><b>第20课</b>　中枢延伸期间只做震荡，不做方向判断（价格在中枢内来回＝没有方向）。</div><div style="margin-top:10px;font-size:12.5px;color:#8a8a8e">当前触发</div><div class="risk">【第16课】力度已衰减但笔未走完（缺底分型）。此时按一买入场＝在'跌势未尽'处接刀，原文明确属于要躲的两大风险之一，应当等确认。</div>
+</div>
+<div class="card">
+  <h2>关键位</h2>
+  <table><tr><th>压力</th><th class="n">点位</th></tr><tr><td>MA20</td><td class="n">3636.54</td></tr><tr><td>三卖 / 第一次反弹高点</td><td class="n">3701.59</td></tr><tr><td>日线中枢下沿</td><td class="n">3927.85</td></tr></table>
+  <table style="margin-top:8px"><tr><th>支撑</th><th class="n">点位</th></tr><tr><td>0.618 回撤</td><td class="n">3506.03</td></tr><tr><td>月线中枢上沿</td><td class="n">3418.95</td></tr><tr><td>0.786 回撤</td><td class="n">3301.38</td></tr></table>
+</div>
+<div class="card">
+  <h2>出现什么才动手</h2>
+  <table><tr><th>如果出现</th><th>对应动作</th></tr><tr><td>30 分钟收盘站回 <b>3565.59</b>（最后中枢下沿）并写出底分型</td><td>短线止跌，可小仓做差，目标先看 MA20 3636.54</td></tr><tr><td>再跌破 <b>3500.83</b> 时，绿柱面积仍小于 -347</td><td>力度双缩且笔走完 → 一买近似</td></tr><tr><td>收盘跌破 <b>3418.95</b> 且一周收不回</td><td>大级别转弱，空间下移到 0.786（3301.38）</td></tr><tr><td>反弹站上 <b>3927.85</b></td><td>回到中枢内，下跌结构才算被破坏</td></tr></table>
+</div>
+<div class="card">
+  <h2>日线结构图 <span class="pill p-grey">蓝线=笔 橙框=中枢</span></h2>
+  <img src="chart_sh000001.png" loading="lazy" alt="结构图">
+</div>
+<div class="card">
+  <h2>信号灯走查回测 <span class="pill p-grey">以当日收盘计</span></h2>
+  <table>
+    <tr><th>信号状态</th><th class="n">样本</th><th class="n">5日</th><th class="n">10日</th><th class="n">20日</th><th class="n">5日胜率</th><th class="n">20日回撤</th></tr>
+    <tr><td><span class="pill p-red">红灯（空仓等）</span></td><td class="n">611</td><td class="n">+0.29%</td><td class="n">+0.40%</td><td class="n">+0.52%</td><td class="n">56%</td><td class="n">-2.48%</td></tr><tr><td><span class="pill p-amber">黄灯（观察）</span></td><td class="n">171</td><td class="n">-0.03%</td><td class="n">-0.06%</td><td class="n">-0.66%</td><td class="n">49%</td><td class="n">-3.32%</td></tr><tr><td><span class="pill p-green">绿灯（持有）</span></td><td class="n">125</td><td class="n">-0.09%</td><td class="n">-0.05%</td><td class="n">-0.15%</td><td class="n">49%</td><td class="n">-3.19%</td></tr>
+  </table>
+  <table style="margin-top:10px">
+    <tr><th>信号切换日</th><th class="n">样本</th><th class="n">5日</th><th class="n">10日</th><th class="n">20日</th><th class="n">5日胜率</th><th class="n">20日回撤</th></tr>
+    <tr><td><span class="pill p-red">红灯（空仓等）</span></td><td class="n">26</td><td class="n">+0.48%</td><td class="n">+0.30%</td><td class="n">+0.68%</td><td class="n">62%</td><td class="n">-2.06%</td></tr><tr><td><span class="pill p-amber">黄灯（观察）</span></td><td class="n">48</td><td class="n">-0.01%</td><td class="n">+0.12%</td><td class="n">-0.58%</td><td class="n">50%</td><td class="n">-2.81%</td></tr><tr><td><span class="pill p-green">绿灯（持有）</span></td><td class="n">40</td><td class="n">-0.07%</td><td class="n">-0.07%</td><td class="n">-1.51%</td><td class="n">48%</td><td class="n">-3.41%</td></tr>
+  </table>
+  <div style="font-size:11.5px;color:#9a9aa0;margin-top:8px">样本期 2015-08-10 ~ 2026-10-23，中位数收益；“信号切换日”指灯由别的颜色切到该颜色的那一天。</div>
+  <div style="font-size:12px;color:#b3720c;background:#fdf2e2;border-radius:9px;padding:9px 11px;margin-top:10px;line-height:1.55">
+    ⚠ 这张表是对本站自己的检验：<b>信号灯本身没有稳定的边际</b>（有的指数上红灯之后反而是涨的）。
+    所以请把它当“状态描述”，不要当择时指标；真正有信息量的是三卖/中枢下沿这些结构位，以及上面的风控规则。
+  </div>
+</div>
+<div class="card">
+  <h2>最近 8 次收盘结论</h2>
+  <table><tr><th>日期</th><th class="n">收盘</th><th>结论</th></tr><tr><td class="n">2026-11-20</td><td class="n">3533.79</td><td><span class="pill p-amber">下跌在减速，等底分型</span></td></tr></table>
+</div>
+<details class="card"><summary>口径 vs 原文（点开核对）</summary><div style="margin-top:10px">
+<table>
+<tr><th>本站口径</th><th>原文（《教你炒股票》）</th></tr>
+<tr><td>用<b>笔</b>做中枢的最小零件</td><td>第18/20课：中枢由"三个连续<b>次级别走势类型</b>"重叠确定，区间 <code>[max(a2,b2,c2), min(a1,b1,c1)]</code>，简化为 <code>[max(a2,c2), min(a1,c1)]</code>。笔≠走势类型，简化了一级。</td></tr>
+<tr><td>延伸：笔端点回到区间；最多 9 笔截断</td><td>第20课中心定理一：中枢延伸 ⟺ 任意 <code>[dn,gn]</code> 与 <code>[ZD,ZG]</code> 有重叠。本站用笔端点近似"波动区间"；"9 笔截断"是流行口径，原文没有这条定理。</td></tr>
+<tr><td>三买/三卖只认<b>第一次</b>回试</td><td>第20课：<i>"并不是任何回调回抽都是第三类买卖点，必须是第一次。"</i> —— 一致。</td></tr>
+<tr><td>叫"<b>同向笔力度</b>（背驰近似）"</td><td>第16课：<i>"没有趋势，没有背驰；背驰是前后趋势间的比较。"</i> 本站比的是同向笔，不是两个趋势，所以只能叫近似。</td></tr>
+<tr><td>风控块</td><td>第16课：入场后一旦出现盘整，坚决退出；第20课：三买后不成趋势，在盘整高点出掉。</td></tr>
+</table>
+</div></details>
+</div><div class="panel" id="p1"><div class="verdict red">
+  <div class="tag">今 日 信 号</div>
+  <div class="big">月线破位，宁可空仓</div>
+  <div class="line">日线在 3227~3472 中枢下方；离开后反弹第一次只到 2620.25（三卖）。本轮下跌 2376→2212：价新低、DIF 抬高（-204.5→-155.7）、绿柱面积缩小；这一笔还没走完。30 分钟最后中枢 2264~2330。</div>
+</div>
+<div class="card">
+  <h2>结构状态</h2>
+  <div class="kv"><span class="k">日线位置</span><span class="v">中枢下方（3227~3472）</span></div>
+  <div class="kv"><span class="k">三买 / 三卖</span><span class="v">三卖 2620.25（第 1 次回试）</span></div>
+  <div class="kv"><span class="k">同向笔力度（背驰近似）</span><span class="v"><span class="pill p-amber">价新低 + DIF 抬高 + 面积缩（≈底背驰）</span></span></div>
+  <div class="kv"><span class="k">30 分钟</span><span class="v">最后中枢 2264~2330</span></div>
+  <div class="kv"><span class="k">月线（大级别）</span><span class="v">月线中枢上沿 2661（已跌破）</span></div>
+</div>
+<div class="card">
+  <h2>风控提示（原文规则）</h2>
+  <div class="rule"><b>第16课</b>　入场后一旦出现盘整走势，坚决退出（盘整不参与，且盘整后有一半概率继续下跌）。</div><div class="rule"><b>第20课</b>　三类买卖点必须是<b>第一次</b>回试；三买后若走不出第二个同级别中枢（不成趋势），就在盘整高点出掉。</div><div class="rule"><b>第20课</b>　中枢延伸期间只做震荡，不做方向判断（价格在中枢内来回＝没有方向）。</div><div style="margin-top:10px;font-size:12.5px;color:#8a8a8e">当前触发</div><div class="risk">【第16课】力度已衰减但笔未走完（缺底分型）。此时按一买入场＝在'跌势未尽'处接刀，原文明确属于要躲的两大风险之一，应当等确认。</div>
+</div>
+<div class="card">
+  <h2>关键位</h2>
+  <table><tr><th>压力</th><th class="n">点位</th></tr><tr><td>MA20</td><td class="n">2453.47</td></tr><tr><td>三卖 / 第一次反弹高点</td><td class="n">2620.25</td></tr><tr><td>日线中枢下沿</td><td class="n">3227.18</td></tr></table>
+  <table style="margin-top:8px"><tr><th>支撑</th><th class="n">点位</th></tr><tr><td>月线中枢上沿</td><td class="n">2661.28</td></tr><tr><td>0.618 回撤</td><td class="n">2589.80</td></tr><tr><td>0.786 回撤</td><td class="n">2103.04</td></tr></table>
+</div>
+<div class="card">
+  <h2>出现什么才动手</h2>
+  <table><tr><th>如果出现</th><th>对应动作</th></tr><tr><td>30 分钟收盘站回 <b>2263.74</b>（最后中枢下沿）并写出底分型</td><td>短线止跌，可小仓做差，目标先看 MA20 2453.47</td></tr><tr><td>再跌破 <b>2212.13</b> 时，绿柱面积仍小于 -1107</td><td>力度双缩且笔走完 → 一买近似</td></tr><tr><td>收盘跌破 <b>2661.28</b> 且一周收不回</td><td>大级别转弱，空间下移到 0.786（2103.04）</td></tr><tr><td>反弹站上 <b>3227.18</b></td><td>回到中枢内，下跌结构才算被破坏</td></tr></table>
+</div>
+<div class="card">
+  <h2>日线结构图 <span class="pill p-grey">蓝线=笔 橙框=中枢</span></h2>
+  <img src="chart_sz399006.png" loading="lazy" alt="结构图">
+</div>
+<div class="card">
+  <h2>信号灯走查回测 <span class="pill p-grey">以当日收盘计</span></h2>
+  <table>
+    <tr><th>信号状态</th><th class="n">样本</th><th class="n">5日</th><th class="n">10日</th><th class="n">20日</th><th class="n">5日胜率</th><th class="n">20日回撤</th></tr>
+    <tr><td><span class="pill p-red">红灯（空仓等）</span></td><td class="n">510</td><td class="n">+0.15%</td><td class="n">-0.11%</td><td class="n">-0.11%</td><td class="n">52%</td><td class="n">-4.55%</td></tr><tr><td><span class="pill p-amber">黄灯（观察）</span></td><td class="n">329</td><td class="n">-0.16%</td><td class="n">+0.41%</td><td class="n">-0.41%</td><td class="n">47%</td><td class="n">-5.06%</td></tr><tr><td><span class="pill p-green">绿灯（持有）</span></td><td class="n">68</td><td class="n">+0.63%</td><td class="n">+0.24%</td><td class="n">-2.19%</td><td class="n">57%</td><td class="n">-5.04%</td></tr>
+  </table>
+  <table style="margin-top:10px">
+    <tr><th>信号切换日</th><th class="n">样本</th><th class="n">5日</th><th class="n">10日</th><th class="n">20日</th><th class="n">5日胜率</th><th class="n">20日回撤</th></tr>
+    <tr><td><span class="pill p-red">红灯（空仓等）</span></td><td class="n">28</td><td class="n">+1.40%</td><td class="n">+0.11%</td><td class="n">+0.19%</td><td class="n">64%</td><td class="n">-3.45%</td></tr><tr><td><span class="pill p-amber">黄灯（观察）</span></td><td class="n">41</td><td class="n">-0.43%</td><td class="n">-0.25%</td><td class="n">-0.76%</td><td class="n">44%</td><td class="n">-5.06%</td></tr><tr><td><span class="pill p-green">绿灯（持有）</span></td><td class="n">17</td><td class="n">+1.19%</td><td class="n">+1.63%</td><td class="n">+2.04%</td><td class="n">71%</td><td class="n">-3.55%</td></tr>
+  </table>
+  <div style="font-size:11.5px;color:#9a9aa0;margin-top:8px">样本期 2015-08-10 ~ 2026-10-23，中位数收益；“信号切换日”指灯由别的颜色切到该颜色的那一天。</div>
+  <div style="font-size:12px;color:#b3720c;background:#fdf2e2;border-radius:9px;padding:9px 11px;margin-top:10px;line-height:1.55">
+    ⚠ 这张表是对本站自己的检验：<b>信号灯本身没有稳定的边际</b>（有的指数上红灯之后反而是涨的）。
+    所以请把它当“状态描述”，不要当择时指标；真正有信息量的是三卖/中枢下沿这些结构位，以及上面的风控规则。
+  </div>
+</div>
+<div class="card">
+  <h2>最近 8 次收盘结论</h2>
+  <table><tr><th>日期</th><th class="n">收盘</th><th>结论</th></tr><tr><td class="n">2026-11-20</td><td class="n">2212.13</td><td><span class="pill p-red">月线破位，宁可空仓</span></td></tr></table>
+</div>
+<details class="card"><summary>口径 vs 原文（点开核对）</summary><div style="margin-top:10px">
+<table>
+<tr><th>本站口径</th><th>原文（《教你炒股票》）</th></tr>
+<tr><td>用<b>笔</b>做中枢的最小零件</td><td>第18/20课：中枢由"三个连续<b>次级别走势类型</b>"重叠确定，区间 <code>[max(a2,b2,c2), min(a1,b1,c1)]</code>，简化为 <code>[max(a2,c2), min(a1,c1)]</code>。笔≠走势类型，简化了一级。</td></tr>
+<tr><td>延伸：笔端点回到区间；最多 9 笔截断</td><td>第20课中心定理一：中枢延伸 ⟺ 任意 <code>[dn,gn]</code> 与 <code>[ZD,ZG]</code> 有重叠。本站用笔端点近似"波动区间"；"9 笔截断"是流行口径，原文没有这条定理。</td></tr>
+<tr><td>三买/三卖只认<b>第一次</b>回试</td><td>第20课：<i>"并不是任何回调回抽都是第三类买卖点，必须是第一次。"</i> —— 一致。</td></tr>
+<tr><td>叫"<b>同向笔力度</b>（背驰近似）"</td><td>第16课：<i>"没有趋势，没有背驰；背驰是前后趋势间的比较。"</i> 本站比的是同向笔，不是两个趋势，所以只能叫近似。</td></tr>
+<tr><td>风控块</td><td>第16课：入场后一旦出现盘整，坚决退出；第20课：三买后不成趋势，在盘整高点出掉。</td></tr>
+</table>
+</div></details>
+</div><div class="panel" id="p2"><div class="verdict red">
+  <div class="tag">今 日 信 号</div>
+  <div class="big">下跌未减速，空仓等</div>
+  <div class="line">日线在 1578~1902 中枢下方；离开后反弹第一次只到 1364.88（三卖）。本轮下跌 1132→1198：还没跌破前低 1132.33；这一笔还没走完。30 分钟最后中枢 1257~1277。</div>
+</div>
+<div class="card">
+  <h2>结构状态</h2>
+  <div class="kv"><span class="k">日线位置</span><span class="v">中枢下方（1578~1902）</span></div>
+  <div class="kv"><span class="k">三买 / 三卖</span><span class="v">三卖 1364.88（第 1 次回试）</span></div>
+  <div class="kv"><span class="k">同向笔力度（背驰近似）</span><span class="v"><span class="pill p-grey">未跌破前低</span></span></div>
+  <div class="kv"><span class="k">30 分钟</span><span class="v">最后中枢 1257~1277</span></div>
+  <div class="kv"><span class="k">月线（大级别）</span><span class="v">月线中枢上沿 1168（在上方）</span></div>
+</div>
+<div class="card">
+  <h2>风控提示（原文规则）</h2>
+  <div class="rule"><b>第16课</b>　入场后一旦出现盘整走势，坚决退出（盘整不参与，且盘整后有一半概率继续下跌）。</div><div class="rule"><b>第20课</b>　三类买卖点必须是<b>第一次</b>回试；三买后若走不出第二个同级别中枢（不成趋势），就在盘整高点出掉。</div><div class="rule"><b>第20课</b>　中枢延伸期间只做震荡，不做方向判断（价格在中枢内来回＝没有方向）。</div><div style="margin-top:10px;font-size:12.5px;color:#8a8a8e">当前触发</div><div class="risk">【无】当前没有触发原文的退出条件；信号是'等待/空仓'，不构成买入依据。</div>
+</div>
+<div class="card">
+  <h2>关键位</h2>
+  <table><tr><th>压力</th><th class="n">点位</th></tr><tr><td>MA20</td><td class="n">1249.49</td></tr><tr><td>三卖 / 第一次反弹高点</td><td class="n">1364.88</td></tr><tr><td>日线中枢下沿</td><td class="n">1578.18</td></tr></table>
+  <table style="margin-top:8px"><tr><th>支撑</th><th class="n">点位</th></tr><tr><td>0.618 回撤</td><td class="n">1257.48</td></tr><tr><td>月线中枢上沿</td><td class="n">1168.09</td></tr><tr><td>0.786 回撤</td><td class="n">986.25</td></tr></table>
+</div>
+<div class="card">
+  <h2>出现什么才动手</h2>
+  <table><tr><th>如果出现</th><th>对应动作</th></tr><tr><td>30 分钟收盘站回 <b>1256.53</b>（最后中枢下沿）并写出底分型</td><td>短线止跌，可小仓做差，目标先看 MA20 1249.49</td></tr><tr><td>再跌破 <b>1198.26</b> 时，绿柱面积仍小于 -516</td><td>力度双缩且笔走完 → 一买近似</td></tr><tr><td>收盘跌破 <b>1168.09</b> 且一周收不回</td><td>大级别转弱，空间下移到 0.786（986.25）</td></tr><tr><td>反弹站上 <b>1578.18</b></td><td>回到中枢内，下跌结构才算被破坏</td></tr></table>
+</div>
+<div class="card">
+  <h2>日线结构图 <span class="pill p-grey">蓝线=笔 橙框=中枢</span></h2>
+  <img src="chart_sh000688.png" loading="lazy" alt="结构图">
+</div>
+<div class="card">
+  <h2>信号灯走查回测 <span class="pill p-grey">以当日收盘计</span></h2>
+  <table>
+    <tr><th>信号状态</th><th class="n">样本</th><th class="n">5日</th><th class="n">10日</th><th class="n">20日</th><th class="n">5日胜率</th><th class="n">20日回撤</th></tr>
+    <tr><td><span class="pill p-red">红灯（空仓等）</span></td><td class="n">316</td><td class="n">-0.20%</td><td class="n">-0.67%</td><td class="n">-1.58%</td><td class="n">48%</td><td class="n">-4.58%</td></tr><tr><td><span class="pill p-amber">黄灯（观察）</span></td><td class="n">102</td><td class="n">-0.23%</td><td class="n">-0.84%</td><td class="n">-1.15%</td><td class="n">47%</td><td class="n">-6.24%</td></tr><tr><td><span class="pill p-green">绿灯（持有）</span></td><td class="n">45</td><td class="n">+0.03%</td><td class="n">-0.06%</td><td class="n">-2.09%</td><td class="n">51%</td><td class="n">-7.01%</td></tr>
+  </table>
+  <table style="margin-top:10px">
+    <tr><th>信号切换日</th><th class="n">样本</th><th class="n">5日</th><th class="n">10日</th><th class="n">20日</th><th class="n">5日胜率</th><th class="n">20日回撤</th></tr>
+    <tr><td><span class="pill p-red">红灯（空仓等）</span></td><td class="n">13</td><td class="n">-1.03%</td><td class="n">-5.74%</td><td class="n">-8.59%</td><td class="n">38%</td><td class="n">-10.95%</td></tr><tr><td><span class="pill p-amber">黄灯（观察）</span></td><td class="n">18</td><td class="n">+1.27%</td><td class="n">-0.05%</td><td class="n">-0.73%</td><td class="n">50%</td><td class="n">-5.89%</td></tr><tr><td><span class="pill p-green">绿灯（持有）</span></td><td class="n">13</td><td class="n">+0.03%</td><td class="n">-0.06%</td><td class="n">+0.70%</td><td class="n">54%</td><td class="n">-3.91%</td></tr>
+  </table>
+  <div style="font-size:11.5px;color:#9a9aa0;margin-top:8px">样本期 2021-01-27 ~ 2026-10-23，中位数收益；“信号切换日”指灯由别的颜色切到该颜色的那一天。</div>
+  <div style="font-size:12px;color:#b3720c;background:#fdf2e2;border-radius:9px;padding:9px 11px;margin-top:10px;line-height:1.55">
+    ⚠ 这张表是对本站自己的检验：<b>信号灯本身没有稳定的边际</b>（有的指数上红灯之后反而是涨的）。
+    所以请把它当“状态描述”，不要当择时指标；真正有信息量的是三卖/中枢下沿这些结构位，以及上面的风控规则。
+  </div>
+</div>
+<div class="card">
+  <h2>最近 8 次收盘结论</h2>
+  <table><tr><th>日期</th><th class="n">收盘</th><th>结论</th></tr><tr><td class="n">2026-11-20</td><td class="n">1231.09</td><td><span class="pill p-red">下跌未减速，空仓等</span></td></tr></table>
+</div>
+<details class="card"><summary>口径 vs 原文（点开核对）</summary><div style="margin-top:10px">
+<table>
+<tr><th>本站口径</th><th>原文（《教你炒股票》）</th></tr>
+<tr><td>用<b>笔</b>做中枢的最小零件</td><td>第18/20课：中枢由"三个连续<b>次级别走势类型</b>"重叠确定，区间 <code>[max(a2,b2,c2), min(a1,b1,c1)]</code>，简化为 <code>[max(a2,c2), min(a1,c1)]</code>。笔≠走势类型，简化了一级。</td></tr>
+<tr><td>延伸：笔端点回到区间；最多 9 笔截断</td><td>第20课中心定理一：中枢延伸 ⟺ 任意 <code>[dn,gn]</code> 与 <code>[ZD,ZG]</code> 有重叠。本站用笔端点近似"波动区间"；"9 笔截断"是流行口径，原文没有这条定理。</td></tr>
+<tr><td>三买/三卖只认<b>第一次</b>回试</td><td>第20课：<i>"并不是任何回调回抽都是第三类买卖点，必须是第一次。"</i> —— 一致。</td></tr>
+<tr><td>叫"<b>同向笔力度</b>（背驰近似）"</td><td>第16课：<i>"没有趋势，没有背驰；背驰是前后趋势间的比较。"</i> 本站比的是同向笔，不是两个趋势，所以只能叫近似。</td></tr>
+<tr><td>风控块</td><td>第16课：入场后一旦出现盘整，坚决退出；第20课：三买后不成趋势，在盘整高点出掉。</td></tr>
+</table>
+</div></details>
+</div>
+<div class="foot">
+  数据：日线/30 分钟来自新浪财经（备用腾讯），月线由日线合成；MACD(12,26,9)。<br>
+  笔与中枢按"包含处理 → 分型 → 笔 → 笔中枢"机械划分，<b>线段未自动识别、用笔代替次级别走势类型</b>，
+  所以"中枢""背驰"都是原文口径的近似，页面内已标注差异。<br>
+  回测为每日走查（只用当日及以前数据算信号），以收盘计，未计交易成本；样本期见各页。不构成投资建议。
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});
+    document.querySelectorAll('.panel').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');
+    document.getElementById('p'+b.dataset.i).classList.add('on');
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+});
+</script>
+</body></html>
