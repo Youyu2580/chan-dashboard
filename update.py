@@ -38,7 +38,8 @@ def fetch_sina(symbol, scale, datalen):
         txt = txt.replace("%s:" % k, '"%s":' % k)
     data = json.loads(txt)
     return [{"date": d["day"], "o": float(d["open"]), "h": float(d["high"]),
-             "l": float(d["low"]), "c": float(d["close"])} for d in data]
+             "l": float(d["low"]), "c": float(d["close"]),
+             "v": float(d.get("volume") or 0)} for d in data]
 
 
 def fetch_tencent_min(symbol, period, count):
@@ -51,7 +52,8 @@ def fetch_tencent_min(symbol, period, count):
         if len(t) < 12:
             continue
         out.append({"date": "%s-%s-%s %s:%s:00" % (t[0:4], t[4:6], t[6:8], t[8:10], t[10:12]),
-                    "o": float(r[1]), "c": float(r[2]), "h": float(r[3]), "l": float(r[4])})
+                    "o": float(r[1]), "c": float(r[2]), "h": float(r[3]), "l": float(r[4]),
+                    "v": float(r[5]) if len(r) > 5 else 0.0})
     return out
 
 
@@ -60,7 +62,8 @@ def fetch_tencent_day(symbol, count):
     raw = json.loads(_get(url))
     d = raw["data"][symbol]
     arr = d.get("day") or d.get("qfqday")
-    return [{"date": r[0], "o": float(r[1]), "c": float(r[2]), "h": float(r[3]), "l": float(r[4])} for r in arr]
+    return [{"date": r[0], "o": float(r[1]), "c": float(r[2]), "h": float(r[3]), "l": float(r[4]),
+             "v": float(r[5]) if len(r) > 5 else 0.0} for r in arr]
 
 
 def get_daily(symbol):
@@ -82,6 +85,17 @@ def get_30m(symbol):
                 return bars
         except Exception as e:
             print("fetch fail 30m:", symbol, fn.__name__, type(e).__name__, str(e)[:100], file=sys.stderr)
+    return []
+
+
+def get_5m(symbol):
+    for fn, args in ((fetch_sina, (symbol, 5, 2000)), (fetch_tencent_min, (symbol, "m5", 1200))):
+        try:
+            bars = fn(*args)
+            if len(bars) > 200:
+                return bars
+        except Exception as e:
+            print("fetch fail 5m:", symbol, fn.__name__, type(e).__name__, str(e)[:100], file=sys.stderr)
     return []
 
 
@@ -169,7 +183,18 @@ def build_bi(fx, min_gap=4):
     return bis
 
 
-def build_zs(bis, max_bi=9):
+def build_zs(bis, mode="range", max_bi=None):
+    """笔中枢：连续三笔的价格重叠区 [max(low), min(high)]。
+
+    延伸判据两种（2026-11-24 分级别启用）：
+    - mode="range"：后续笔的**整笔区间**与 [zd, zg] 有交集即延伸。
+      这是《第20课》"任意 [dn,gn] 与 [ZD,ZG] 有重叠"的字面口径，
+      用在 30min / 5min——笔相对中枢够短，笔≈次级别走势类型的近似成立。
+    - mode="endpoint"：后续笔的**端点**回到 [zd, zg] 才延伸（保留一次越界回归）。
+      用在日线 / 月线：级别越高一笔越长，整笔区间会"贯穿"中枢造成无限延伸
+      （实测月线上证会把上沿从 3419 撑到 3709，直接把大级别闸门卡死）。
+    max_bi 是防跑飞的安全上限，0/None 表示不截断。
+    """
     zs, i = [], 0
     while i + 2 < len(bis):
         three = bis[i:i + 3]
@@ -179,20 +204,188 @@ def build_zs(bis, max_bi=9):
             i += 1
             continue
         j = i + 2
-        while j + 1 < len(bis) and (j + 1 - i + 1) <= max_bi:
+        while j + 1 < len(bis):
+            if max_bi and (j + 1 - i + 1) > max_bi:
+                break
             nb = bis[j + 1]
-            if zd <= nb["e"]["price"] <= zg:
+            if mode == "endpoint":
+                if zd <= nb["e"]["price"] <= zg:
+                    j += 1
+                    continue
+                if (j + 2 < len(bis) and (not max_bi or (j + 2 - i + 1) <= max_bi)
+                        and zd <= bis[j + 2]["e"]["price"] <= zg):
+                    j += 2
+                    continue
+                break
+            if nb["high"] >= zd and nb["low"] <= zg:
                 j += 1
-                continue
-            if (j + 2 < len(bis) and (j + 2 - i + 1) <= max_bi
-                    and zd <= bis[j + 2]["e"]["price"] <= zg):
-                j += 2
                 continue
             break
         zs.append({"zd": zd, "zg": zg, "start": bis[i]["s"]["date"], "end": bis[j]["e"]["date"],
                    "start_oi": bis[i]["s"]["oi"], "end_oi": bis[j]["e"]["oi"], "nbi": j - i + 1})
         i = j + 1
     return zs
+
+
+# ---------------- 结构补充（2026-11-24 新增） ----------------
+def gaps(bars, min_pts=1.0, keep=6):
+    """日线跳空缺口（前收 vs 今开），只返回**未回补**的部分，最近的在前。"""
+    out = []
+    for i in range(1, len(bars)):
+        pc, op = bars[i - 1]["c"], bars[i]["o"]
+        d = op - pc
+        if abs(d) < min_pts:
+            continue
+        lo, hi = (pc, op) if d > 0 else (op, pc)
+        after = bars[i:]
+        mx = max(b["h"] for b in after)
+        mn = min(b["l"] for b in after)
+        if d > 0:
+            # 向上跳空：缺口区 [pc, op]，靠下跌回补；已跌到的部分算补掉，剩 [pc, mn]
+            if mn <= lo:
+                continue
+            hi = min(hi, mn)
+        else:
+            # 向下跳空：缺口区 [op, pc]，靠上涨回补；已涨到的部分算补掉，剩 [mx, pc]
+            if mx >= hi:
+                continue
+            lo = max(lo, mx)
+        if lo >= hi:
+            continue
+        out.append({"date": bars[i]["date"][:10], "lo": round(lo, 2), "hi": round(hi, 2),
+                    "dir": "up" if d > 0 else "down", "pts": round(hi - lo, 2)})
+    return out[-keep:][::-1]
+
+
+def vol_state(bars, n=5):
+    """量价配合四象限。指数是加权合成，不设「缩量=好」的单边门槛。"""
+    if len(bars) < n + 2:
+        return None
+    v = [float(b.get("v") or 0) for b in bars]
+    if v[-1] <= 0:
+        return None
+    base = sum(v[-1 - n:-1]) / n
+    if base <= 0:
+        return None
+    ratio = v[-1] / base
+    chg = (bars[-1]["c"] / bars[-2]["c"] - 1) * 100
+    if chg >= 0 and ratio >= 1.15:
+        q, txt, cls = "涨放量", "主动买盘进场，健康", "p-green"
+    elif chg >= 0 and ratio < 0.85:
+        q, txt, cls = "涨缩量", "无量反抽，持续性弱", "p-amber"
+    elif chg < 0 and ratio < 0.85:
+        q, txt, cls = "跌缩量", "卖压衰竭，不是坏事", "p-amber"
+    elif chg < 0 and ratio >= 1.15:
+        q, txt, cls = "跌放量", "出清与破位加速难分，看次日", "p-red"
+    else:
+        q, txt, cls = "量价平稳", "无明显量能信号", "p-grey"
+    return {"ratio": round(ratio, 2), "chg": round(chg, 2), "quad": q, "note": txt, "cls": cls}
+
+
+def freshness(bars):
+    """数据新鲜度：最后一根日线是否就是最近一个交易日（15:35 那次跑常拿到 T-1）。"""
+    last = bars[-1]["date"][:10]
+    now = datetime.now(timezone(timedelta(hours=8)))
+    d = now if now.hour >= 15 else now - timedelta(days=1)
+    while d.weekday() >= 5:
+        d = d - timedelta(days=1)
+    want = d.strftime("%Y-%m-%d")
+    lag = 0
+    if last != want:
+        try:
+            a = datetime.strptime(last, "%Y-%m-%d")
+            b = datetime.strptime(want, "%Y-%m-%d")
+            lag = sum(1 for k in range(max(0, (b - a).days))
+                      if (a + timedelta(days=k)).weekday() < 5)
+        except Exception:
+            lag = 1
+    return {"last": last, "want": want, "lag": lag, "ok": lag == 0}
+
+
+def zs_stability(bars, k=3, mode="endpoint", max_bi=9):
+    """中枢稳定性自检：用 T-1..T-k 的数据重算最后中枢，看上下沿漂多少。"""
+    if len(bars) < 400:
+        return None
+    base = analyze(bars, mode=mode, max_bi=max_bi)["zs"]
+    if not base:
+        return None
+    z0 = base[-1]
+    rows = []
+    for back in range(1, k + 1):
+        zs = analyze(bars[:-back], mode=mode, max_bi=max_bi)["zs"]
+        if not zs:
+            continue
+        z = zs[-1]
+        if z["start"][:10] != z0["start"][:10]:
+            rows.append({"back": back, "new": True, "dzd": None, "dzg": None, "start": z["start"][:10]})
+        else:
+            rows.append({"back": back, "new": False, "dzd": round(z["zd"] - z0["zd"], 2),
+                         "dzg": round(z["zg"] - z0["zg"], 2), "start": z["start"][:10]})
+    drift = max([max(abs(r["dzd"] or 0), abs(r["dzg"] or 0)) for r in rows] or [0])
+    return {"rows": rows, "drift": round(drift, 2), "unstable": drift > 5,
+            "zd": round(z0["zd"], 2), "zg": round(z0["zg"], 2),
+            "end": z0["end"][:10], "bars_since_end": max(0, len(bars) - 1 - z0["end_oi"])}
+
+
+def level_ladder(level, m30, m5):
+    """级别梯：日线 / 30min / 5min 各自最后一个中枢 + 现价相对位置。"""
+    close = level["bars"][-1]["c"]
+    rows = []
+    for nm, lv in (("日线", level), ("30min", m30), ("5min", m5)):
+        if not lv or not lv.get("zs"):
+            rows.append({"name": nm, "ok": False})
+            continue
+        z = lv["zs"][-1]
+        if close > z["zg"]:
+            pos, dist = "中枢上方", (z["zg"] / close - 1) * 100
+        elif close < z["zd"]:
+            pos, dist = "中枢下方", (z["zd"] / close - 1) * 100
+        else:
+            pos, dist = "中枢内", 0.0
+        rows.append({"name": nm, "ok": True, "zd": round(z["zd"], 2), "zg": round(z["zg"], 2),
+                     "pos": pos, "dist": round(dist, 2), "nbi": z.get("nbi"),
+                     "start": z["start"][:10], "end": z["end"][:10]})
+    return {"close": round(close, 2), "rows": rows}
+
+
+def upgrade_state(m5, m30):
+    """级别升级状态机：5min 向上笔 → 5min 向上段 → 回踩不破 → 30min 中枢。"""
+    if not m5 or not m5.get("bars") or not m5.get("bis"):
+        return None
+    bars, bis = m5["bars"], m5["bis"]
+    close = bars[-1]["c"]
+    # 起点 = 最近一个"创新低"的向下笔的终点（不是全窗口最低，否则会拿半个月前的低点当现在的起点）
+    dns_all = [b for b in bis if b["dir"] == "down"]
+    if not dns_all:
+        return None
+    start_bi = dns_all[-1]
+    for i in range(len(dns_all) - 1, 0, -1):
+        if dns_all[i]["e"]["price"] < dns_all[i - 1]["e"]["price"]:
+            start_bi = dns_all[i]
+            break
+    lo, lo_date, li = start_bi["e"]["price"], start_bi["e"]["date"], start_bi["e"]["oi"]
+    ups = [b for b in bis if b["dir"] == "up" and b["e"]["oi"] >= li]
+    dns = [b for b in bis if b["dir"] == "down" and b["e"]["oi"] >= li]
+    steps = []
+    steps.append({"name": "5min 向上笔", "ok": len(ups) >= 1,
+                  "note": ("起点 %.2f（%s）还没有向上笔" % (lo, lo_date[:16])) if not ups
+                          else ("已走出，高点 %.2f" % ups[0]["e"]["price"])})
+    need = ups[0]["e"]["price"] if ups else None
+    steps.append({"name": "5min 向上段", "ok": bool(len(ups) >= 2 and ups[-1]["e"]["price"] > ups[0]["e"]["price"]),
+                  "note": ("需再破 %.2f" % need) if need else "—"})
+    steps.append({"name": "回踩不破", "ok": bool(dns and dns[-1]["e"]["price"] > lo),
+                  "note": ("回踩 %.2f，起点 %.2f" % (dns[-1]["e"]["price"], lo)) if dns else "尚未回踩"})
+    ok4, n4 = False, "30min 尚未出现新中枢"
+    if m30 and m30.get("zs"):
+        z = m30["zs"][-1]
+        # 必须是"起点之后形成的、且价格站住下沿"的 30min 中枢，才算级别升级
+        ok4 = z["start"] >= lo_date and close >= z["zd"]
+        n4 = "30min 中枢 %.2f~%.2f（%s 起）%s" % (
+            z["zd"], z["zg"], z["start"][:10],
+            "" if z["start"] >= lo_date else "，但早于本次起点")
+    steps.append({"name": "30min 中枢", "ok": ok4, "note": n4})
+    return {"lo": round(lo, 2), "lo_date": lo_date, "steps": steps,
+            "done": sum(1 for s in steps if s["ok"])}
 
 
 def ema(vals, n):
@@ -214,13 +407,13 @@ def hist_area(hist, a, b, sign):
     return sum(x for x in hist[a:b + 1] if (x > 0) == (sign > 0))
 
 
-def analyze(bars, name=""):
+def analyze(bars, name="", mode="range", max_bi=None):
     merged = merge_inclusion(bars)
     fx = attach_extreme(bars, merged, find_fx(merged))
     bis = build_bi(fx)
     dif, dea, hist = macd([b["c"] for b in bars])
-    return {"name": name, "bars": bars, "bis": bis, "zs": build_zs(bis),
-            "dif": dif, "dea": dea, "hist": hist}
+    return {"name": name, "bars": bars, "bis": bis, "zs": build_zs(bis, mode, max_bi),
+            "dif": dif, "dea": dea, "hist": hist, "mode": mode, "max_bi": max_bi}
 
 
 def legs(level, direction):
@@ -285,7 +478,7 @@ def retests(level, dz, pos, bis_idx):
     return len(pts), (round(pts[0], 2) if pts else None)
 
 
-def judge(level, m30, monthly):
+def judge(level, m30, monthly, m5=None):
     bars = level["bars"]
     close, date = bars[-1]["c"], bars[-1]["date"]
     out = {"close": close, "date": date}
@@ -315,7 +508,11 @@ def judge(level, m30, monthly):
 
     mz = monthly["zs"][-1] if monthly["zs"] else None
     out["monthly_zs"] = mz
+    # 闸门口径：站上月线中枢上沿才算大级别转强（不是"跌破下沿"）。
+    # 2026-11-24 备注：把"破位"改成"未转强"——价格在月线中枢内部属于大级别震荡，不叫破位。
     out["monthly_ok"] = (mz is None) or (close > mz["zg"])
+    out["monthly_pos"] = ("无中枢" if mz is None
+                          else ("上方" if close > mz["zg"] else ("下方" if close < mz["zd"] else "内")))
 
     ups = [b for b in monthly["bis"] if b["dir"] == "up"]
     fib = None
@@ -329,14 +526,28 @@ def judge(level, m30, monthly):
                    "ret": round((hi - close) / (hi - lo) * 100, 1)}
     out["fib"] = fib
     out["ma20"] = round(sum(b["c"] for b in bars[-20:]) / 20, 2)
-    out["light"], out["title"] = light_of_levels(level, dz, pos, out["d_down"], mz, out["monthly_ok"])
+    out["light"], out["title"] = light_of_levels(level, dz, pos, out["d_down"], mz,
+                                                 out["monthly_ok"], out["monthly_pos"])
     out["line"] = narrative(out, level)
     out["risk"] = risk_notes(out, level)
+
+    # ---- 2026-11-24 新增：缺口 / 量价 / 新鲜度 / 中枢稳定性 / 级别梯 / 升级状态机 ----
+    out["gaps"] = gaps(bars)
+    out["vol"] = vol_state(bars)
+    out["fresh"] = freshness(bars)
+    out["stab"] = None if FAST else zs_stability(bars, mode=level.get("mode", "range"), max_bi=level.get("max_bi"))
+    out["ladder"] = level_ladder(level, m30, m5)
+    out["upgrade"] = upgrade_state(m5, m30)
+    out["m5_zs"] = m5["zs"] if (m5 and m5["zs"]) else []
     return out
 
 
-def light_of_levels(level, dz, pos, dd, mz, monthly_ok):
-    if not monthly_ok:
+def light_of_levels(level, dz, pos, dd, mz, monthly_ok, monthly_pos="内"):
+    # 大级别只在"跌破月线中枢下沿"时一票否决（真破位）。
+    # 价格停在月线中枢内部＝大级别震荡，交给日线结构判灯，只在"月线（大级别）"那行说明。
+    # 2026-11-24 修订：旧版用"跌破上沿"当破位，与"中枢内震荡"混淆；若让"内部"也覆盖信号灯，
+    # 信号会长期卡在黄灯（实测上证 80% 的交易日落在月线中枢内）。
+    if mz is not None and monthly_pos == "下方":
         return "red", "月线破位，宁可空仓"
     if pos == "below":
         if dd and dd["new_extreme"] and dd["dif_shrink"] and dd["area_shrink"] and not dd["ongoing"]:
@@ -353,13 +564,13 @@ def light_of_levels(level, dz, pos, dd, mz, monthly_ok):
 
 
 def light_of_bars(bars):
-    lv = analyze(bars)
+    lv = analyze(bars, mode="endpoint", max_bi=9)
     if not lv["zs"]:
         return None
     dz = lv["zs"][-1]
     close = bars[-1]["c"]
     pos = "above" if close > dz["zg"] else ("below" if close < dz["zd"] else "inside")
-    mo = analyze(to_monthly(bars))
+    mo = analyze(to_monthly(bars), mode="endpoint", max_bi=9)
     mz = mo["zs"][-1] if mo["zs"] else None
     ok = (mz is None) or (close > mz["zg"])
     return light_of_levels(lv, dz, pos, leg_state(lv, "down"), mz, ok)[0]
@@ -617,7 +828,10 @@ SOURCE_TABLE = """
 <table>
 <tr><th>本站口径</th><th>原文（《教你炒股票》）</th></tr>
 <tr><td>用<b>笔</b>做中枢的最小零件</td><td>第18/20课：中枢由"三个连续<b>次级别走势类型</b>"重叠确定，区间 <code>[max(a2,b2,c2), min(a1,b1,c1)]</code>，简化为 <code>[max(a2,c2), min(a1,c1)]</code>。笔≠走势类型，简化了一级。</td></tr>
-<tr><td>延伸：笔端点回到区间；最多 9 笔截断</td><td>第20课中心定理一：中枢延伸 ⟺ 任意 <code>[dn,gn]</code> 与 <code>[ZD,ZG]</code> 有重叠。本站用笔端点近似"波动区间"；"9 笔截断"是流行口径，原文没有这条定理。</td></tr>
+<tr><td>延伸：<b>整笔区间</b>与中枢区间有重叠即延伸，不设笔数截断</td><td>第20课中心定理一：中枢延伸 ⟺ 任意 <code>[dn,gn]</code> 与 <code>[ZD,ZG]</code> 有重叠。<b>2026-11-24 已对齐</b>（旧版用"笔端点落入区间"+9 笔截断，实测会让中枢上沿偏高、触发价随数据漂移）。</td></tr>
+<tr><td>月线闸门三态</td><td>站上月线中枢上沿=放行；在中枢内部=只做小级别；跌破下沿=大级别破位。本站把"内部"当作震荡而非破位，这是本站的读法，原文没有这条量化规则。</td></tr>
+<tr><td>缺口只作一行<b>旁证</b>，不进判定</td><td>缺口不是缠论要素。原文里缺口只出现在<b>线段划分的特征序列</b>（有无缺口决定线段破坏要不要第三元素确认），是分类判据、不是目标位。本站连线段都没自动识别，所以缺口只作参考，信号灯 / 升级状态机 / 触发表一概不用它。</td></tr>
+<tr><td>量价配合四象限</td><td>不用"缩量=好"的单边门槛：指数是加权合成，低位放量可能是出清也可能是破位加速，本站只做描述不做判定。</td></tr>
 <tr><td>三买/三卖只认<b>第一次</b>回试</td><td>第20课：<i>"并不是任何回调回抽都是第三类买卖点，必须是第一次。"</i> —— 一致。</td></tr>
 <tr><td>叫"<b>同向笔力度</b>（背驰近似）"</td><td>第16课：<i>"没有趋势，没有背驰；背驰是前后趋势间的比较。"</i> 本站比的是同向笔，不是两个趋势，所以只能叫近似。</td></tr>
 <tr><td>风控块</td><td>第16课：入场后一旦出现盘整，坚决退出；第20课：三买后不成趋势，在盘整高点出掉。</td></tr>
@@ -691,9 +905,14 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
             if k not in dct:
                 continue
             v = dct[k]
-            out += ('<tr><td><span class="pill %s">%s</span></td><td class="n">%d</td><td class="n">%+.2f%%</td>'
+            note = ""
+            if v["n"] < 30:
+                note = ' <span style="font-size:11px;color:#9a9aa0">样本不足</span>'
+            elif k == "amber" and v["r20"] < 0:
+                note = ' <span style="font-size:11px;color:#c0392b">20日期望为负</span>'
+            out += ('<tr><td><span class="pill %s">%s</span>%s</td><td class="n">%d</td><td class="n">%+.2f%%</td>'
                     '<td class="n">%+.2f%%</td><td class="n">%+.2f%%</td><td class="n">%.0f%%</td><td class="n">%+.2f%%</td></tr>'
-                    % (cls, lab, v["n"], v["r5"], v["r10"], v["r20"], v["win5"], v["dd20"]))
+                    % (cls, lab, note, v["n"], v["r5"], v["r10"], v["r20"], v["win5"], v["dd20"]))
         return out
 
     labels = (("red", "红灯（空仓等）", "p-red"), ("amber", "黄灯（观察）", "p-amber"),
@@ -720,10 +939,99 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
     if j["m30_zs"]:
         z = j["m30_zs"][-1]
         m30_txt = "最后中枢 %.0f~%.0f" % (z["zd"], z["zg"])
-    month_txt = ("月线中枢上沿 %.0f（在上方）" % mz["zg"]) if (mz and j["monthly_ok"]) else (
-        ("月线中枢上沿 %.0f（已跌破）" % mz["zg"]) if mz else "月线中枢不足")
+    if mz:
+        if j["close"] > mz["zg"]:
+            month_txt = "月线中枢 %.0f~%.0f（在上方）" % (mz["zd"], mz["zg"])
+        elif j["close"] < mz["zd"]:
+            month_txt = "月线中枢 %.0f~%.0f（跌破下沿，大级别转弱）" % (mz["zd"], mz["zg"])
+        else:
+            month_txt = "月线中枢 %.0f~%.0f（在内，大级别震荡）" % (mz["zd"], mz["zg"])
+    else:
+        month_txt = "月线中枢不足"
 
-    return """<div class="verdict %(light)s">
+    # ---------- 2026-11-24 新增渲染块 ----------
+    fresh = j.get("fresh") or {}
+    fresh_html = ""
+    if fresh and not fresh.get("ok"):
+        fresh_html = ('<div class="card" style="border-left:4px solid #c0392b">'
+                      '<h2>数据滞后</h2><div class="line">最后一根日线是 <b>%s</b>，按交易日应为 <b>%s</b>'
+                      '（落后约 %d 个交易日）。15:35 那次常拿到 T-1，等 16:35 那次覆盖；'
+                      '动手前先看这里的日期。</div></div>' % (fresh.get("last"), fresh.get("want"), fresh.get("lag")))
+
+    lad = j.get("ladder") or {}
+    lad_rows = ""
+    for r in lad.get("rows", []):
+        if not r.get("ok"):
+            lad_rows += '<tr><td>%s</td><td colspan="3" class="n">结构不足</td></tr>' % r["name"]
+            continue
+        need = "需涨" if r["pos"] == "中枢下方" else ("需跌" if r["pos"] == "中枢上方" else "")
+        lad_rows += ('<tr><td>%s</td><td class="n">%.2f~%.2f</td><td>%s</td>'
+                     '<td class="n">%s %+.1f%%</td></tr>'
+                     % (r["name"], r["zd"], r["zg"], r["pos"], need, r["dist"]))
+    ladder_html = ('<div class="card"><h2>级别梯 <span class="pill p-grey">现价 %.2f</span></h2>'
+                   '<table><tr><th>级别</th><th class="n">最后中枢</th><th>位置</th>'
+                   '<th class="n">距最近边界</th></tr>%s</table>'
+                   '<div style="font-size:11.5px;color:#9a9aa0;margin-top:8px">'
+                   '大级别定方向、小级别定动作。日线中枢只用来判“结构坏没坏”，'
+                   '能不能动手看 5min / 30min。</div><!--GAP--></div>' % (lad.get("close", j["close"]), lad_rows))
+
+    upg = j.get("upgrade")
+    upg_rows = ""
+    if upg:
+        for s in upg["steps"]:
+            upg_rows += ('<tr><td>%s</td><td><span class="pill %s">%s</span></td><td>%s</td></tr>'
+                         % (s["name"], "p-green" if s["ok"] else "p-grey",
+                            "已过" if s["ok"] else "未过", s["note"]))
+    upg_html = ""
+    if upg:
+        upg_html = ('<div class="card"><h2>级别升级状态机 <span class="pill %s">%d/4</span></h2>'
+                    '<div class="line" style="margin:0 0 10px">5min 起点 <b>%.2f</b>（%s）。'
+                    '“5min 段成立 → 回踩不破 → 做出 30min 中枢”三件事依次完成，'
+                    '才算 30min 级别启动；在此之前每次反弹都可能是最后一次。</div>'
+                    '<table><tr><th>关口</th><th>状态</th><th>读数</th></tr>%s</table></div>'
+                    % ("p-green" if upg["done"] >= 4 else "p-amber", upg["done"],
+                       upg["lo"], upg["lo_date"][:16], upg_rows))
+
+    # 缺口：非缠论口径，只作一行旁证挂在级别梯下面，不占卡片、不进判定
+    gp = j.get("gaps") or []
+    if gp:
+        gp_txt = "、".join("%.2f~%.2f" % (g["lo"], g["hi"]) for g in gp[:3])
+        gap_note = ('<div style="font-size:11.5px;color:#9a9aa0;margin-top:6px;line-height:1.6">'
+                    '旁证（<b>非缠论口径</b>，不进判定）：上方另有 %d 道跳空未补 —— %s%s。'
+                    '缠论里缺口只用于线段划分的特征序列，不是目标位；本站判定只看中枢。</div>'
+                    % (len(gp), gp_txt, " 等" if len(gp) > 3 else ""))
+    else:
+        gap_note = ""
+    ladder_html = ladder_html.replace("<!--GAP-->", gap_note)
+
+    vol = j.get("vol") or {}
+    vol_html = "—（数据源无成交量）"
+    if vol:
+        vol_html = '<span class="pill %s">%s</span> 量比 %.2fx，当日 %+.2f%%　%s' % (
+            vol["cls"], vol["quad"], vol["ratio"], vol["chg"], vol["note"])
+
+    stab = j.get("stab")
+    stab_html = ""
+    if stab:
+        srows = "".join('<tr><td class="n">T-%d</td><td class="n">%s</td><td class="n">%s</td></tr>'
+                        % (r["back"], r.get("start", ""),
+                           "中枢起点变了" if r.get("new")
+                           else "%+.2f / %+.2f" % (r.get("dzd") or 0, r.get("dzg") or 0))
+                        for r in stab["rows"])
+        stab_html = ('<div class="card"><h2>中枢稳定性自检 '
+                     '<span class="pill %s">最大漂移 %.2f 点</span></h2>'
+                     '<div class="line" style="margin:0 0 10px">当前日线中枢 <b>%.2f~%.2f</b>，'
+                     '结束于 <b>%s</b>（距今 %d 根 K 线）。中枢若已结束多日，边界自然不会漂移；'
+                     '真正要盯的是它还在延伸时会不会被尾部数据带跑。</div>'
+                     '<table><tr><th class="n">回退</th><th class="n">中枢起点</th>'
+                     '<th class="n">下沿/上沿漂移</th></tr>%s</table>'
+                     '<div style="font-size:11.5px;color:#9a9aa0;margin-top:8px">'
+                     '同一段行情少用最后几根 K 线重算，中枢边界应当基本不动。'
+                     '漂移超过 5 点，说明边界依赖尾部数据，触发价要打折看。</div></div>'
+                     % ("p-red" if stab["unstable"] else "p-green", stab["drift"],
+                        stab["zd"], stab["zg"], stab.get("end", ""), stab.get("bars_since_end", 0), srows))
+
+    return """%(fresh)s<div class="verdict %(light)s">
   <div class="tag">今 日 信 号</div>
   <div class="big">%(title)s</div>
   <div class="line">%(line)s</div>
@@ -734,8 +1042,12 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
   <div class="kv"><span class="k">三买 / 三卖</span><span class="v">%(retest)s</span></div>
   <div class="kv"><span class="k">同向笔力度（背驰近似）</span><span class="v"><span class="pill %(dcls)s">%(dtxt)s</span></span></div>
   <div class="kv"><span class="k">30 分钟</span><span class="v">%(m30)s</span></div>
+  <div class="kv"><span class="k">量价配合</span><span class="v">%(vol)s</span></div>
   <div class="kv"><span class="k">月线（大级别）</span><span class="v">%(month)s</span></div>
 </div>
+%(ladder)s
+%(upg)s
+%(stab)s
 <div class="card">
   <h2>风控提示（原文规则）</h2>
   %(risk)s
@@ -778,6 +1090,8 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
         "light": j["light"], "title": j["title"], "line": j["line"],
         "pos": pos_txt, "retest": retest, "dcls": dcls, "dtxt": dtxt,
         "m30": m30_txt, "month": month_txt, "risk": risk_html,
+        "fresh": fresh_html, "ladder": ladder_html, "upg": upg_html,
+        "stab": stab_html, "vol": vol_html,
         "res": "".join('<tr><td>%s</td><td class="n">%.2f</td></tr>' % (a, b) for a, b in rows_res),
         "sup": "".join('<tr><td>%s</td><td class="n">%.2f</td></tr>' % (a, b) for a, b in rows_sup),
         "conds": "".join("<tr><td>%s</td><td>%s</td></tr>" % c for c in conds),
@@ -806,10 +1120,12 @@ def main():
             print("skip", sym, "no data", file=sys.stderr)
             continue
         m30_bars = get_30m(sym)
-        level = analyze(daily_bars, sym)
+        m5_bars = get_5m(sym)
+        level = analyze(daily_bars, sym, mode="endpoint", max_bi=9)
         m30 = analyze(m30_bars, sym) if len(m30_bars) > 200 else None
-        monthly = analyze(to_monthly(daily_bars), sym)
-        j = judge(level, m30, monthly)
+        m5 = analyze(m5_bars, sym) if len(m5_bars) > 200 else None
+        monthly = analyze(to_monthly(daily_bars), sym, mode="endpoint", max_bi=9)
+        j = judge(level, m30, monthly, m5)
 
         bt = {} if FAST else backtest(daily_bars)
         fib_, mz_ = j["fib"] or {}, j["monthly_zs"] or {}
@@ -840,6 +1156,9 @@ def main():
                       "light": j["light"], "title": j["title"], "line": j["line"],
                       "pos": j["pos"], "zs": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in j["zs"].items()},
                       "sell3": j["sell3"], "buy3": j["buy3"], "retest_n": j["retest_n"],
+                      "gaps": j.get("gaps") or [], "vol": j.get("vol") or {},
+                      "fresh": j.get("fresh") or {}, "stab": j.get("stab") or {},
+                      "ladder": j.get("ladder") or {}, "upgrade": j.get("upgrade") or {},
                       "bt": bt, "gen_at": gen_at}
 
     json.dump(hist_all, open(hpath, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
