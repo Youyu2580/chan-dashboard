@@ -355,17 +355,20 @@ def upgrade_state(m5, m30):
     bars, bis = m5["bars"], m5["bis"]
     close = bars[-1]["c"]
     # 起点 = 最近一个"创新低"的向下笔的终点（不是全窗口最低，否则会拿半个月前的低点当现在的起点）
-    dns_all = [b for b in bis if b["dir"] == "down"]
-    if not dns_all:
+    # 2026-11-27：改用 legs() 的向下段（含末端延伸），并排除"未成笔"的合成段，
+    # 与日线/30min 用同一套笔端口径。
+    dsegs = [s for s in legs(m5, "down") if not s.get("syn")]
+    if not dsegs:
         return None
-    start_bi = dns_all[-1]
-    for i in range(len(dns_all) - 1, 0, -1):
-        if dns_all[i]["e"]["price"] < dns_all[i - 1]["e"]["price"]:
-            start_bi = dns_all[i]
+    start = dsegs[-1]
+    for i in range(len(dsegs) - 1, 0, -1):
+        if dsegs[i]["ext"] < dsegs[i - 1]["ext"]:
+            start = dsegs[i]
             break
-    lo, lo_date, li = start_bi["e"]["price"], start_bi["e"]["date"], start_bi["e"]["oi"]
+    li = start["e"]
+    lo, lo_date = start["ext"], bars[li]["date"]
     ups = [b for b in bis if b["dir"] == "up" and b["e"]["oi"] >= li]
-    dns = [b for b in bis if b["dir"] == "down" and b["e"]["oi"] >= li]
+    dns = [s for s in dsegs if s["e"] >= li]
     steps = []
     steps.append({"name": "5min 向上笔", "ok": len(ups) >= 1,
                   "note": ("起点 %.2f（%s）还没有向上笔" % (lo, lo_date[:16])) if not ups
@@ -373,8 +376,8 @@ def upgrade_state(m5, m30):
     need = ups[0]["e"]["price"] if ups else None
     steps.append({"name": "5min 向上段", "ok": bool(len(ups) >= 2 and ups[-1]["e"]["price"] > ups[0]["e"]["price"]),
                   "note": ("需再破 %.2f" % need) if need else "—"})
-    steps.append({"name": "回踩不破", "ok": bool(dns and dns[-1]["e"]["price"] > lo),
-                  "note": ("回踩 %.2f，起点 %.2f" % (dns[-1]["e"]["price"], lo)) if dns else "尚未回踩"})
+    steps.append({"name": "回踩不破", "ok": bool(dns and dns[-1]["ext"] > lo),
+                  "note": ("回踩 %.2f，起点 %.2f" % (dns[-1]["ext"], lo)) if dns else "尚未回踩"})
     ok4, n4 = False, "30min 尚未出现新中枢"
     if m30 and m30.get("zs"):
         z = m30["zs"][-1]
@@ -418,7 +421,8 @@ def analyze(bars, name="", mode="range", max_bi=None):
 
 def legs(level, direction):
     bars, bis = level["bars"], level["bis"]
-    segs = [{"s": b["s"]["oi"], "e": b["e"]["oi"], "ext": b["e"]["price"], "ongoing": False}
+    segs = [{"s": b["s"]["oi"], "e": b["e"]["oi"], "sp": b["s"]["price"],
+             "ext": b["e"]["price"], "ongoing": False}
             for b in bis if b["dir"] == direction]
     if bis and bis[-1]["dir"] != direction:
         start = bis[-1]["e"]["oi"]
@@ -430,7 +434,8 @@ def legs(level, direction):
             else:
                 k = max(idxs, key=lambda i: bars[i]["h"])
                 ext = bars[k]["h"]
-            segs.append({"s": start, "e": k, "ext": ext, "ongoing": True})
+            segs.append({"s": start, "e": k, "sp": bis[-1]["e"]["price"],
+                         "ext": ext, "ongoing": True, "syn": True})
     # 2026-11-27：末端笔试穿校验。
     # 最后一笔之后若又创新低/新高，说明这个"已成立"的笔端已被后续走势否定：
     # 笔端延到极值那根并标 ongoing。否则会出现"笔已走完（≈一买）"连着几天
@@ -468,6 +473,18 @@ def leg_state(level, direction):
             "area_shrink": abs(ab) < abs(aa) * 0.85,
             "dif_shrink": abs(db) < abs(da),
             "ongoing": b["ongoing"]}
+
+
+def last_leg(level):
+    """最后一笔（含末端延伸）：起点/终点/是否走完/终点后又走了几根 K 线。"""
+    if not level["bis"]:
+        return None
+    b = level["bis"][-1]
+    seg = legs(level, b["dir"])[-1]
+    bars = level["bars"]
+    return {"dir": b["dir"], "s": bars[seg["s"]]["date"], "sp": round(seg["sp"], 2),
+            "e": bars[seg["e"]]["date"], "ep": round(seg["ext"], 2),
+            "ongoing": seg["ongoing"], "since": max(0, len(bars) - 1 - seg["e"])}
 
 
 # ---------------- 判定 ----------------
@@ -519,6 +536,7 @@ def judge(level, m30, monthly, m5=None):
 
     out["d_down"] = leg_state(level, "down")
     out["d_up"] = leg_state(level, "up")
+    out["last_leg"] = last_leg(level)
     out["m_down"] = leg_state(m30, "down") if m30 and m30["bis"] else None
     out["m30_zs"] = m30["zs"] if (m30 and m30["zs"]) else []
 
@@ -874,6 +892,17 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
     else:
         retest = "未出现"
 
+    ll = j.get("last_leg") or {}
+    if ll:
+        llk = "最后一笔（日线·%s）" % ("向上" if ll["dir"] == "up" else "向下")
+        lltxt = "%s %.2f → %s %.2f（%s）" % (
+            ll["s"][5:10], ll["sp"], ll["e"][5:10], ll["ep"],
+            "未走完" if ll["ongoing"] else "已走完")
+        if ll.get("since"):
+            lltxt += "，终点后又走 %d 根" % ll["since"]
+    else:
+        llk, lltxt = "最后一笔（日线）", "—"
+
     dd = j["d_down"] or {}
     if dd.get("new_extreme") and dd.get("dif_shrink") and dd.get("area_shrink"):
         dcls, dtxt = "p-amber", "价新低 + DIF 抬高 + 面积缩（≈底背驰）"
@@ -1063,6 +1092,7 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
   <div class="kv"><span class="k">日线位置</span><span class="v">%(pos)s</span></div>
   <div class="kv"><span class="k">三买 / 三卖</span><span class="v">%(retest)s</span></div>
   <div class="kv"><span class="k">同向笔力度（背驰近似）</span><span class="v"><span class="pill %(dcls)s">%(dtxt)s</span></span></div>
+  <div class="kv"><span class="k">%(llk)s</span><span class="v">%(ll)s</span></div>
   <div class="kv"><span class="k">30 分钟</span><span class="v">%(m30)s</span></div>
   <div class="kv"><span class="k">量价配合</span><span class="v">%(vol)s</span></div>
   <div class="kv"><span class="k">月线（大级别）</span><span class="v">%(month)s</span></div>
@@ -1110,7 +1140,7 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
 <details class="card"><summary>口径 vs 原文（点开核对）</summary><div style="margin-top:10px">%(src)s</div></details>
 """ % {
         "light": j["light"], "title": j["title"], "line": j["line"],
-        "pos": pos_txt, "retest": retest, "dcls": dcls, "dtxt": dtxt,
+        "pos": pos_txt, "retest": retest, "dcls": dcls, "dtxt": dtxt, "llk": llk, "ll": lltxt,
         "m30": m30_txt, "month": month_txt, "risk": risk_html,
         "fresh": fresh_html, "ladder": ladder_html, "upg": upg_html,
         "stab": stab_html, "vol": vol_html,
@@ -1181,7 +1211,18 @@ def main():
                       "gaps": j.get("gaps") or [], "vol": j.get("vol") or {},
                       "fresh": j.get("fresh") or {}, "stab": j.get("stab") or {},
                       "ladder": j.get("ladder") or {}, "upgrade": j.get("upgrade") or {},
+                      "last_leg": j.get("last_leg") or {},
                       "bt": bt, "gen_at": gen_at}
+
+    # 数据滞后闸门（2026-11-27）：15:35 那趟常拿到 T-1，只出红条仍会把线上覆盖成昨天。
+    # 任一指数 lag>0 就不写任何文件、直接退出——保留上一版，发布权交给 16:35 那趟。
+    stale = [(v.get("name", k), (v.get("fresh") or {}).get("lag", 0), v.get("date"))
+             for k, v in brief.items() if (v.get("fresh") or {}).get("lag", 0) > 0]
+    if stale and os.environ.get("CHAN_ALLOW_STALE") != "1":
+        print("数据滞后（%s），本轮不发布，保留上一版；16:35 再跑。"
+              % "；".join("%s 落后 %d 个交易日（最新 %s）" % (n, lag, d) for n, lag, d in stale),
+              file=sys.stderr)
+        return
 
     json.dump(hist_all, open(hpath, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     json.dump(brief, open(os.path.join(SITE, "data.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
