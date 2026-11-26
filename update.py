@@ -431,6 +431,22 @@ def legs(level, direction):
                 k = max(idxs, key=lambda i: bars[i]["h"])
                 ext = bars[k]["h"]
             segs.append({"s": start, "e": k, "ext": ext, "ongoing": True})
+    # 2026-11-27：末端笔试穿校验。
+    # 最后一笔之后若又创新低/新高，说明这个"已成立"的笔端已被后续走势否定：
+    # 笔端延到极值那根并标 ongoing。否则会出现"笔已走完（≈一买）"连着几天
+    # 挂在不断创新低的走势上（11-24~26 上证 / 创业板实测）。
+    if segs and bis and bis[-1]["dir"] == direction:
+        last = segs[-1]
+        idxs = list(range(last["e"] + 1, len(bars)))
+        if idxs:
+            if direction == "down":
+                k = min(idxs, key=lambda i: bars[i]["l"])
+                if bars[k]["l"] < last["ext"]:
+                    last["ext"], last["e"], last["ongoing"] = bars[k]["l"], k, True
+            else:
+                k = max(idxs, key=lambda i: bars[i]["h"])
+                if bars[k]["h"] > last["ext"]:
+                    last["ext"], last["e"], last["ongoing"] = bars[k]["h"], k, True
     return segs
 
 
@@ -552,8 +568,11 @@ def light_of_levels(level, dz, pos, dd, mz, monthly_ok, monthly_pos="内"):
     if pos == "below":
         if dd and dd["new_extreme"] and dd["dif_shrink"] and dd["area_shrink"] and not dd["ongoing"]:
             return "amber", "力度双缩且笔已走完（≈一买）"
-        if dd and dd["new_extreme"] and (dd["dif_shrink"] or dd["area_shrink"]):
+        if dd and dd["new_extreme"] and dd["dif_shrink"]:
             return "amber", "下跌在减速，等底分型"
+        if dd and dd["new_extreme"] and dd["area_shrink"]:
+            # DIF 还在创新低时，单看绿柱面积缩小不足以叫"减速"，措辞降一档
+            return "amber", "面积缩小但 DIF 仍走低（减速待确认）"
         return "red", "下跌未减速，空仓等"
     if pos == "inside":
         return "amber", "中枢震荡，等方向"
@@ -833,7 +852,8 @@ SOURCE_TABLE = """
 <tr><td>缺口只作一行<b>旁证</b>，不进判定</td><td>缺口不是缠论要素。原文里缺口只出现在<b>线段划分的特征序列</b>（有无缺口决定线段破坏要不要第三元素确认），是分类判据、不是目标位。本站连线段都没自动识别，所以缺口只作参考，信号灯 / 升级状态机 / 触发表一概不用它。</td></tr>
 <tr><td>量价配合四象限</td><td>不用"缩量=好"的单边门槛：指数是加权合成，低位放量可能是出清也可能是破位加速，本站只做描述不做判定。</td></tr>
 <tr><td>三买/三卖只认<b>第一次</b>回试</td><td>第20课：<i>"并不是任何回调回抽都是第三类买卖点，必须是第一次。"</i> —— 一致。</td></tr>
-<tr><td>叫"<b>同向笔力度</b>（背驰近似）"</td><td>第16课：<i>"没有趋势，没有背驰；背驰是前后趋势间的比较。"</i> 本站比的是同向笔，不是两个趋势，所以只能叫近似。</td></tr>
+<tr><td>叫"<b>同向笔力度</b>（背驰近似）"</td><td>第16课：<i>"没有趋势，没有背驰；背驰是前后趋势间的比较。"</i> 本站比的是同向笔，不是两个趋势，所以只能叫近似。口径：<b>DIF 抬高</b>才算"减速"；只有绿柱面积缩小、DIF 仍创新低时，只标"减速待确认"。</td></tr>
+<tr><td>末端笔<b>击穿校验</b>（本站新增，2026-11-27）</td><td>原文没有"笔已成立、但被后续新低否定"的显式条款。本站按笔的定义补一条：最后一笔之后若再创新低/新高，笔端延到极值那根、视为仍未走完——否则会把"底分型成立"误读成"跌完了"。</td></tr>
 <tr><td>风控块</td><td>第16课：入场后一旦出现盘整，坚决退出；第20课：三买后不成趋势，在盘整高点出掉。</td></tr>
 </table>
 """
@@ -859,8 +879,10 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
         dcls, dtxt = "p-amber", "价新低 + DIF 抬高 + 面积缩（≈底背驰）"
     elif dd.get("new_extreme") and dd.get("dif_shrink"):
         dcls, dtxt = "p-amber", "价新低但 DIF 抬高（有背离迹象）"
+    elif dd.get("new_extreme") and dd.get("area_shrink"):
+        dcls, dtxt = "p-amber", "价新低、DIF 仍新低（面积缩，减速待确认）"
     elif dd.get("new_extreme"):
-        dcls, dtxt = "p-red", "价新低、DIF 走低（比前段更猛）"
+        dcls, dtxt = "p-red", "价新低、DIF 与面积都没缩（比前段更猛）"
     else:
         dcls, dtxt = "p-grey", "未跌破前低"
 
