@@ -572,8 +572,42 @@ def judge(level, m30, monthly, m5=None):
     out["stab"] = None if FAST else zs_stability(bars, mode=level.get("mode", "range"), max_bi=level.get("max_bi"))
     out["ladder"] = level_ladder(level, m30, m5)
     out["upgrade"] = upgrade_state(m5, m30)
+    out["action"] = action_of(out)
     out["m5_zs"] = m5["zs"] if (m5 and m5["zs"]) else []
     return out
+
+
+def action_of(j):
+    """把「灯 + 级别升级」翻译成一句能执行的动作。黄灯不再只有「等」。
+
+    2026-11-28 加：黄灯下三种可行动作分开——
+    ① 日线双背驰买点已现 → 轻仓试探；
+    ② 5min 升级 ≥3 关 → 小级别启动，轻仓试探（止损取 5min 起点）；
+    ③ 其余 → 等底分型 / 中枢内不动。
+    绿灯仍只是「持有 / 回踩加」，本页不给满仓建议。
+    """
+    light = j.get("light")
+    title = j.get("title") or ""
+    pos = j.get("pos")
+    up = j.get("upgrade") or {}
+    done = up.get("done", 0) or 0
+    lo = up.get("lo")
+    if light == "green":
+        return {"k": "持有 / 回踩加", "why": "中枢上方，结构未坏"}
+    if light == "red":
+        return {"k": "空仓等", "why": "下跌未减速，或跌破月线中枢"}
+    if "买点已现" in title or "≈一买" in title:
+        return {"k": "轻仓试探（日线≈一买）", "why": "日线下跌双背驰，笔已走完"}
+    if done >= 3:
+        why = "5min 升级 %d/4 关" % done
+        if lo:
+            why += "，止损 %.2f" % lo
+        return {"k": "轻仓试探（小级别启动）", "why": why}
+    if pos == "inside":
+        return {"k": "等方向（中枢内不动）", "why": "价格在中枢内，无买卖点"}
+    if done >= 1:
+        return {"k": "观察：5min 刚起步", "why": "5min 升级 %d/4 关" % done}
+    return {"k": "等底分型确认", "why": "减速不等于背驰"}
 
 
 def light_of_levels(level, dz, pos, dd, mz, monthly_ok, monthly_pos="内"):
@@ -838,6 +872,11 @@ h1{font-size:18px;font-weight:600}
 .verdict .tag{font-size:12px;opacity:.85;letter-spacing:3px}
 .verdict .big{font-size:21px;font-weight:700;margin-top:6px;line-height:1.4}
 .verdict .line{font-size:13px;opacity:.95;margin-top:8px}
+.verdict .act{margin-top:10px;background:rgba(255,255,255,.2);border-radius:10px;padding:8px 11px;display:flex;flex-direction:column;gap:2px}
+.verdict .act b{font-size:15.5px}
+.verdict .act .why{font-size:12px;opacity:.88}
+.alert{background:#fff7e6;border:1px solid #f0d9a8;color:#7a4f00;border-radius:12px;padding:10px 12px;margin-top:12px;font-size:13px;line-height:1.55}
+.alert b{color:#8a5a00}
 .kv{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:8px 0;border-bottom:1px dashed #ececef}
 .kv:last-child{border-bottom:0}
 .kv .k{color:#76767a;white-space:nowrap}
@@ -879,6 +918,7 @@ SOURCE_TABLE = """
 
 def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
     dz, fib, mz = j["zs"], j["fib"] or {}, j["monthly_zs"] or {}
+    act = j.get("action") or {"k": "—", "why": ""}
     pos_txt = "%s（%.0f~%.0f）" % ({"above": "中枢上方", "below": "中枢下方", "inside": "中枢内"}[j["pos"]], dz["zd"], dz["zg"])
 
     if j.get("sell3"):
@@ -1086,6 +1126,7 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
   <div class="tag">今 日 信 号</div>
   <div class="big">%(title)s</div>
   <div class="line">%(line)s</div>
+  <div class="act"><b>动作｜%(act)s</b><span class="why">%(why)s</span></div>
 </div>
 <div class="card">
   <h2>结构状态</h2>
@@ -1140,6 +1181,7 @@ def render(j, level, m30, monthly, hist_rows, gen_at, bt, sym, chart):
 <details class="card"><summary>口径 vs 原文（点开核对）</summary><div style="margin-top:10px">%(src)s</div></details>
 """ % {
         "light": j["light"], "title": j["title"], "line": j["line"],
+        "act": act["k"], "why": act["why"],
         "pos": pos_txt, "retest": retest, "dcls": dcls, "dtxt": dtxt, "llk": llk, "ll": lltxt,
         "m30": m30_txt, "month": month_txt, "risk": risk_html,
         "fresh": fresh_html, "ladder": ladder_html, "upg": upg_html,
@@ -1166,6 +1208,7 @@ def main():
         hist_all = {"sh000001": hist_all}
 
     tabs, panels, brief = [], [], {}
+    alerts = []
     for sym, name in INDICES:
         daily_bars = get_daily(sym)
         if len(daily_bars) < 300:
@@ -1204,8 +1247,12 @@ def main():
         panels.append('<div class="panel%s" id="p%d">%s</div>'
                       % (" on" if idx == 0 else "", idx,
                          render(j, level, m30, monthly, rows, gen_at, bt, sym, chart)))
+        upg = j.get("upgrade") or {}
+        if (upg.get("done") or 0) >= 3:
+            alerts.append("%s %d/4 关（起点 %.2f）" % (name, upg["done"], upg.get("lo") or 0))
         brief[sym] = {"name": name, "date": j["date"], "close": round(j["close"], 2),
                       "light": j["light"], "title": j["title"], "line": j["line"],
+                      "action": j.get("action") or {},
                       "pos": j["pos"], "zs": {k: (round(v, 2) if isinstance(v, float) else v) for k, v in j["zs"].items()},
                       "sell3": j["sell3"], "buy3": j["buy3"], "retest_n": j["retest_n"],
                       "gaps": j.get("gaps") or [], "vol": j.get("vol") or {},
@@ -1233,6 +1280,7 @@ def main():
 <h1>指数缠论看板</h1>
 <div class="sub">上证指数 · 创业板指 · 科创50　生成 __GEN__</div>
 <div class="tabs">__TABS__</div>
+__ALERT__
 __PANELS__
 <div class="foot">
   数据：日线/30 分钟来自新浪财经（备用腾讯），月线由日线合成；MACD(12,26,9)。<br>
@@ -1252,8 +1300,15 @@ document.querySelectorAll('.tab').forEach(function(b){
 });
 </script>
 </body></html>"""
+    alert_html = ""
+    if alerts:
+        alert_html = ('<div class="alert"><b>5min 级别启动：%s</b><br>'
+                      '四关＝5min 向上笔 / 5min 向上段 / 回踩不破 / 30min 中枢；'
+                      '3 关＝可轻仓试探（止损取 5min 起点），4 关＝结构升级、才谈加仓。</div>'
+                      % "；".join(alerts))
     html = (html.replace("__CSS__", CSS).replace("__GEN__", gen_at)
-            .replace("__TABS__", "".join(tabs)).replace("__PANELS__", "".join(panels)))
+            .replace("__TABS__", "".join(tabs)).replace("__ALERT__", alert_html)
+            .replace("__PANELS__", "".join(panels)))
     with open(os.path.join(SITE, "index.html"), "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
     print("OK", gen_at, "|", " ; ".join("%s %s %.2f" % (v["name"], v["light"], v["close"]) for v in brief.values()))
